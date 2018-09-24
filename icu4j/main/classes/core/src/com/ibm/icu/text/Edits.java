@@ -820,11 +820,10 @@ public final class Edits {
 
         /**
          * A string representation of the current edit represented by the iterator for debugging. You
-         * should not depend on the contents of the return string.
-         * @internal
-         * @deprecated This API is ICU internal only.
+         * should not depend on the contents of the return string; it may change over time.
+         * @return a string representation of the object.
+         * @stable ICU 59
          */
-        @Deprecated
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();

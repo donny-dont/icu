@@ -226,6 +226,7 @@ void addLocaleTest(TestNode** root)
     TESTCASE(TestKeywordVariants);
     TESTCASE(TestKeywordVariantParsing);
     TESTCASE(TestCanonicalization);
+    TESTCASE(TestCanonicalizationBuffer);
     TESTCASE(TestKeywordSet);
     TESTCASE(TestKeywordSetError);
     TESTCASE(TestDisplayKeywords);
@@ -251,6 +252,7 @@ void addLocaleTest(TestNode** root)
     TESTCASE(TestLikelySubtags);
     TESTCASE(TestToLanguageTag);
     TESTCASE(TestForLanguageTag);
+    TESTCASE(TestInvalidLanguageTag);
     TESTCASE(TestTrailingNull);
     TESTCASE(TestUnicodeDefines);
     TESTCASE(TestEnglishExemplarCharacters);
@@ -2247,6 +2249,42 @@ static void TestCanonicalization(void)
                         label[j], testCases[i].localeID, origResultLen, resultLen);
             }
         }
+    }
+}
+
+static void TestCanonicalizationBuffer(void)
+{
+    UErrorCode status = U_ZERO_ERROR;
+    char buffer[256];
+
+    // ULOC_FULLNAME_CAPACITY == 157 (uloc.h)
+    static const char name[] =
+        "zh@x"
+        "=foo-bar-baz-foo-bar-baz-foo-bar-baz-foo-bar-baz"
+        "-foo-bar-baz-foo-bar-baz-foo-bar-baz-foo-bar-baz"
+        "-foo-bar-baz-foo-bar-baz-foo-bar-baz-foo-bar-baz"
+        "-foo-barz"
+    ;
+    static const size_t len = sizeof name - 1;  // Without NUL terminator.
+
+    int32_t reslen = uloc_canonicalize(name, buffer, len, &status);
+
+    if (U_FAILURE(status)) {
+        log_err("FAIL: uloc_canonicalize(%s) => %s, expected !U_FAILURE()\n",
+                name, u_errorName(status));
+        return;
+    }
+
+    if (reslen != len) {
+        log_err("FAIL: uloc_canonicalize(%s) => \"%i\", expected \"%u\"\n",
+                name, reslen, len);
+        return;
+    }
+
+    if (uprv_strncmp(name, buffer, len) != 0) {
+        log_err("FAIL: uloc_canonicalize(%s) => \"%.*s\", expected \"%s\"\n",
+                name, reslen, buffer, name);
+        return;
     }
 }
 
@@ -6030,6 +6068,9 @@ static const struct {
     {"ja-u-ijkl-efgh-abcd-ca-japanese-xx-yyy-zzz-kn",   "ja@attribute=abcd-efgh-ijkl;calendar=japanese;colnumeric=yes;xx=yyy-zzz",  FULL_LENGTH},
     {"de-u-xc-xphonebk-co-phonebk-ca-buddhist-mo-very-lo-extensi-xd-that-de-should-vc-probably-xz-killthebuffer",
      "de@calendar=buddhist;collation=phonebook;de=should;lo=extensi;mo=very;vc=probably;xc=xphonebk;xd=that;xz=yes", 91},
+    {"de-1901-1901", "de__1901", 7},
+    {"de-DE-1901-1901", "de_DE_1901", 10},
+    {"en-a-bbb-a-ccc", "en@a=bbb", 8},
     /* #12761 */
     {"en-a-bar-u-baz",      "en@a=bar;attribute=baz",   FULL_LENGTH},
     {"en-a-bar-u-baz-x-u-foo",  "en@a=bar;attribute=baz;x=u-foo",   FULL_LENGTH},
@@ -6047,6 +6088,11 @@ static const struct {
     {"zh-cmn-TW", "cmn_TW", FULL_LENGTH},
     {"zh-x_t-ab", "zh", 2},
     {"zh-hans-cn-u-ca-x_t-u", "zh_Hans_CN@calendar=yes",  15},
+    /* #20140 dupe keys in U-extension */
+    {"zh-u-ca-chinese-ca-gregory", "zh@calendar=chinese", FULL_LENGTH},
+    {"zh-u-ca-gregory-co-pinyin-ca-chinese", "zh@calendar=gregorian;collation=pinyin", FULL_LENGTH},
+    {"de-latn-DE-1901-u-co-phonebk-co-pinyin-ca-gregory", "de_Latn_DE_1901@calendar=gregorian;collation=phonebook", FULL_LENGTH},
+    {"th-u-kf-nu-thai-kf-false", "th@colcasefirst=yes;numbers=thai", FULL_LENGTH},
     {NULL,          NULL,           0}
 };
 
@@ -6077,6 +6123,35 @@ static void TestForLanguageTag(void) {
                 log_err("uloc_forLanguageTag parsed length of %d for input language tag [%s] - expected parsed length: %d\n",
                     parsedLen, langtag_to_locale[i].bcpID, expParsedLen);
             }
+        }
+    }
+}
+
+/* See https://unicode-org.atlassian.net/browse/ICU-20149 .
+ * Depending on the resolution of that bug, this test may have
+ * to be revised.
+ */
+static void TestInvalidLanguageTag(void) {
+    static const char* invalid_lang_tags[] = {
+        "zh-u-foo-foo-co-pinyin", /* duplicate attribute in U extension */
+        "zh-cmn-hans-u-foo-foo-co-pinyin", /* duplicate attribute in U extension */
+#if 0
+        /*
+         * These do not lead to an error. Instead, parsing stops at the 1st
+         * invalid subtag.
+         */
+        "de-DE-1901-1901", /* duplicate variant */
+        "en-a-bbb-a-ccc", /* duplicate extension */
+#endif
+        NULL
+    };
+    char locale[256];
+    for (const char** tag = invalid_lang_tags; *tag != NULL; tag++) {
+        UErrorCode status = U_ZERO_ERROR;
+        uloc_forLanguageTag(*tag, locale, sizeof(locale), NULL, &status);
+        if (status != U_ILLEGAL_ARGUMENT_ERROR) {
+            log_err("Error returned by uloc_forLanguageTag for input language tag [%s] : %s - expected error:  %s\n",
+                    *tag, u_errorName(status), u_errorName(U_ILLEGAL_ARGUMENT_ERROR));
         }
     }
 }

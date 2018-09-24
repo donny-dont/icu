@@ -288,8 +288,7 @@ ListFormatter* ListFormatter::createInstance(const Locale& locale, UErrorCode& e
 }
 
 ListFormatter* ListFormatter::createInstance(const Locale& locale, const char *style, UErrorCode& errorCode) {
-    Locale tempLocale = locale;
-    const ListFormatInternal* listFormatInternal = getListFormatInternal(tempLocale, style, errorCode);
+    const ListFormatInternal* listFormatInternal = getListFormatInternal(locale, style, errorCode);
     if (U_FAILURE(errorCode)) {
         return nullptr;
     }
@@ -368,6 +367,7 @@ UnicodeString& ListFormatter::format(
     return format(items, nItems, appendTo, -1, offset, errorCode);
 }
 
+#if !UCONFIG_NO_FORMATTING
 UnicodeString& ListFormatter::format(
         const UnicodeString items[],
         int32_t nItems,
@@ -378,6 +378,7 @@ UnicodeString& ListFormatter::format(
   FieldPositionIteratorHandler handler(posIter, errorCode);
   return format_(items, nItems, appendTo, -1, offset, &handler, errorCode);
 };
+#endif
 
 UnicodeString& ListFormatter::format(
         const UnicodeString items[],
@@ -397,6 +398,7 @@ UnicodeString& ListFormatter::format_(
         int32_t &offset,
         FieldPositionHandler* handler,
         UErrorCode& errorCode) const {
+#if !UCONFIG_NO_FORMATTING
     offset = -1;
     if (U_FAILURE(errorCode)) {
         return appendTo;
@@ -516,6 +518,7 @@ UnicodeString& ListFormatter::format_(
         }
         appendTo += result;
     }
+#endif  
     return appendTo;
 }
 

@@ -4,6 +4,7 @@
 #ifndef ERARULES_H_
 #define ERARULES_H_
 
+#include "unicode/localpointer.h"
 #include "unicode/utypes.h"
 
 #if !UCONFIG_NO_FORMATTING
@@ -11,6 +12,16 @@
 #include "unicode/uobject.h"
 
 U_NAMESPACE_BEGIN
+
+// Export an explicit template instantiation of LocalArray used as a data member of EraRules.
+// When building DLLs for Windows this is required even though no direct access leaks out of the i18n library.
+// See digitlst.h, pluralaffix.h, datefmt.h, and others for similar examples.
+#if U_PF_WINDOWS <= U_PLATFORM && U_PLATFORM <= U_PF_CYGWIN
+// Ignore warning 4661 as LocalPointerBase does not use operator== or operator!=
+#pragma warning(suppress: 4661)
+template class U_I18N_API LocalPointerBase<int32_t>;
+template class U_I18N_API LocalArray<int32_t>;
+#endif
 
 class U_I18N_API EraRules : public UMemory {
 public:
@@ -66,11 +77,11 @@ public:
     }
 
 private:
-    EraRules(int32_t *startDates, int32_t numEra);
+    EraRules(LocalArray<int32_t>& eraStartDates, int32_t numEra);
 
     void initCurrentEra();
 
-    int32_t *startDates;
+    LocalArray<int32_t> startDates;
     int32_t numEras;
     int32_t currentEra;
 };
